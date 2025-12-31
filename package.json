@@ -1,0 +1,22 @@
+{
+  "name": "@no-cloud/sdk",
+  "author": {
+    "name": "sinanovicanes",
+    "email": "anes@nonefivem.com",
+    "url": "https://nonefivem.com"
+  },
+  "main": "dist/index.js",
+  "module": "dist/index.js",
+  "exports": {
+    "import": "./dist/index.js",
+    "require": "./dist/index.js"
+  },
+  "type": "module",
+  "private": false,
+  "devDependencies": {
+    "@types/node": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
