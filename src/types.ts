@@ -1,4 +1,19 @@
 /**
+ * Upload body types.
+ *
+ * `File` and `Blob` are streamed.
+ * `ArrayBuffer` and `string` are buffered in memory.
+ *
+ * `string` values (e.g. Base64) are uploaded as-is.
+ */
+export type FileBody = File | Blob | ArrayBuffer | string;
+
+/**
+ * Metadata associated with a file.
+ */
+export type FileMetadata = Record<string, string | number | boolean>;
+
+/**
  * Response returned after a successful file upload.
  */
 export interface UploadResponse {

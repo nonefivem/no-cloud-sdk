@@ -39,7 +39,7 @@ export class Fetcher {
 
     return withRetry(
       () =>
-        this.fetch(url, {
+        fetch(url, {
           ...options,
           headers: {
             Authorization: `Bearer ${this.apiKey}`,

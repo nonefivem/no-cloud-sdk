@@ -35,3 +35,64 @@ export async function withRetry<T = any>(
 
   throw lastError;
 }
+
+/**
+ * Base64 magic byte signatures for MIME type detection.
+ */
+const BASE64_SIGNATURES: Record<string, string> = {
+  iVBORw0KGgo: "image/png",
+  "/9j/": "image/jpeg",
+  R0lGOD: "image/gif",
+  UklGR: "image/webp",
+  AAAA: "video/mp4",
+  JVBERi0: "application/pdf",
+  UEsDB: "application/zip",
+  PD94bWw: "application/xml",
+  PHN2Zw: "image/svg+xml",
+};
+
+/**
+ * Detects the MIME type from a base64 string.
+ * Supports data URLs and raw base64 with magic byte detection.
+ * @param str - The base64 string or data URL to detect.
+ * @returns The detected MIME type or null if not detected.
+ */
+export function detectBase64MimeType(str: string): string | null {
+  // Check for data URL format: data:image/png;base64,...
+  const dataUrlMatch = str.match(/^data:([^;,]+)/);
+  if (dataUrlMatch?.[1]) {
+    return dataUrlMatch[1];
+  }
+
+  // Detect by base64 magic bytes (first few chars of encoded data)
+  for (const [prefix, mimeType] of Object.entries(BASE64_SIGNATURES)) {
+    if (str.startsWith(prefix)) {
+      return mimeType;
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Extracts the raw base64 data from a data URL or returns the string as-is.
+ * @param str - The data URL or raw base64 string.
+ * @returns The raw base64 data without the data URL prefix.
+ */
+export function extractBase64Data(str: string): string {
+  const dataUrlMatch = str.match(/^data:[^;,]+;base64,(.+)$/);
+  if (dataUrlMatch?.[1]) {
+    return dataUrlMatch[1];
+  }
+  return str;
+}
+
+/**
+ * Calculates the decoded size of a base64 string.
+ * @param base64 - The raw base64 string (not a data URL).
+ * @returns The size in bytes when decoded.
+ */
+export function getBase64DecodedSize(base64: string): number {
+  const padding = (base64.match(/=+$/) || [""])[0].length;
+  return Math.floor((base64.length * 3) / 4) - padding;
+}

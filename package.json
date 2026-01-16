@@ -1,22 +1,68 @@
 {
   "name": "@no-cloud/sdk",
+  "version": "0.1.0",
+  "description": "Official SDK for NoCloud services - file storage and more",
   "author": {
     "name": "sinanovicanes",
     "email": "anes@nonefivem.com",
     "url": "https://nonefivem.com"
   },
-  "main": "dist/index.js",
-  "module": "dist/index.js",
-  "exports": {
-    "import": "./dist/index.js",
-    "require": "./dist/index.js"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/nonefivem/no-cloud-sdk.git"
   },
+  "homepage": "https://github.com/nonefivem/no-cloud-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/nonefivem/no-cloud-sdk/issues"
+  },
+  "keywords": [
+    "nocloud",
+    "no-cloud",
+    "nonem",
+    "nonefivem",
+    "sdk",
+    "storage",
+    "r2",
+    "s3",
+    "file-upload",
+    "api"
+  ],
   "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "bun run clean && bun run build:js && bun run build:types",
+    "build:js": "bun build ./src/index.ts --outfile ./dist/index.js --target browser --format esm --minify && bun build ./src/index.ts --outfile ./dist/index.cjs --target browser --format cjs --minify",
+    "build:types": "bun x dts-bundle-generator -o ./dist/index.d.ts ./src/index.ts --project ./tsconfig.build.json --no-check",
+    "clean": "rm -rf dist",
+    "prepublishOnly": "bun run build",
+    "typecheck": "tsc --noEmit"
+  },
   "private": false,
   "devDependencies": {
-    "@types/node": "latest"
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
   },
-  "peerDependencies": {
-    "typescript": "^5"
+  "engines": {
+    "node": ">=18.0.0"
   }
 }

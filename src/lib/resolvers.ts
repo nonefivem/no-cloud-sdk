@@ -1,19 +1,19 @@
-import { NOCloudAPIError } from "./errors";
+import { NoCloudAPIError } from "./errors";
 
 /**
  * Resolves a JSON response, throwing an error if the response is not ok.
  * @param response The fetch Response object
  * @returns The parsed JSON data
- * @throws {NOCloudAPIError} If the response is not ok
+ * @throws {NoCloudAPIError} If the response is not ok
  */
 export async function resolveJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
     try {
       const err = (await response.json()) as { message?: string };
 
-      throw new NOCloudAPIError(err.message || "API Error", response.status);
+      throw new NoCloudAPIError(err.message || "API Error", response.status);
     } catch (e) {
-      throw new NOCloudAPIError("Unknown error", response.status);
+      throw new NoCloudAPIError("Unknown error", response.status);
     }
   }
 
