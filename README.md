@@ -1,11 +1,21 @@
-# @no-cloud/sdk
+<div align="center">
+  <img src="https://assets.nonefivem.com/logo/dark-bg.png" alt="NoneM Logo" width="200" />
+  
+  # @no-cloud/sdk
+  
+  **Official SDK for NoCloud services**
+  
+  [![npm version](https://img.shields.io/npm/v/@no-cloud/sdk?style=for-the-badge)](https://www.npmjs.com/package/@no-cloud/sdk)
+  [![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+  [![License: MIT](https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge)](https://opensource.org/licenses/MIT)
+  
+</div>
 
-Official SDK for NoCloud services - file storage and more.
+---
 
-[![npm version](https://img.shields.io/npm/v/@no-cloud/sdk.svg)](https://www.npmjs.com/package/@no-cloud/sdk)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+## 🚀 Getting Started
 
-## Installation
+### Installation
 
 ```bash
 npm install @no-cloud/sdk
@@ -15,7 +25,7 @@ bun add @no-cloud/sdk
 pnpm add @no-cloud/sdk
 ```
 
-## Quick Start
+### Quick Start
 
 ```typescript
 import { NoCloud } from "@no-cloud/sdk";
@@ -32,7 +42,9 @@ console.log(`Uploaded: ${url}`);
 await cloud.storage.delete(id);
 ```
 
-## Usage
+---
+
+## 📖 Usage
 
 ### Initialize
 
@@ -47,11 +59,11 @@ const cloud = new NoCloud({
   apiKey: "your-api-key",
   baseUrl: "https://api.nonefivem.com", // optional
   retries: 3, // optional
-  retryDelayMs: 1000, // optional
+  retryDelayMs: 1000 // optional
 });
 ```
 
-### Storage
+### 📦 Storage
 
 #### Upload a File
 
@@ -71,7 +83,7 @@ const { id, url } = await cloud.storage.upload(base64);
 // With metadata
 const { id, url } = await cloud.storage.upload(file, {
   userId: "123",
-  category: "avatars",
+  category: "avatars"
 });
 ```
 
@@ -79,11 +91,7 @@ const { id, url } = await cloud.storage.upload(file, {
 
 ```typescript
 const stream = getReadableStream();
-const { id, url } = await cloud.storage.uploadStream(
-  stream,
-  "video/mp4",
-  fileSize
-);
+const { id, url } = await cloud.storage.uploadStream(stream, "video/mp4", fileSize);
 ```
 
 #### Delete a File
@@ -92,7 +100,9 @@ const { id, url } = await cloud.storage.uploadStream(
 await cloud.storage.delete(mediaId);
 ```
 
-## Supported Body Types
+---
+
+## 📋 Supported Body Types
 
 | Type          | Description          |
 | ------------- | -------------------- |
@@ -103,7 +113,9 @@ await cloud.storage.delete(mediaId);
 
 Base64 strings with data URLs (`data:image/png;base64,...`) or raw base64 are automatically detected and the mime type is inferred.
 
-## Error Handling
+---
+
+## ⚠️ Error Handling
 
 ```typescript
 import { NoCloud, NoCloudAPIError } from "@no-cloud/sdk";
@@ -117,10 +129,14 @@ try {
 }
 ```
 
-## Compatibility
+---
+
+## 🔧 Compatibility
 
 Works in both Node.js (>=18) and browser environments. No Node-specific APIs are used.
 
-## License
+---
 
-MIT © [NoneM](https://nonefivem.com)
+## 📄 License
+
+[MIT](LICENSE) © [NoneM](https://nonefivem.com)
