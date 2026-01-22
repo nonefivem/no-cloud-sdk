@@ -48,7 +48,7 @@ export class Storage extends SDKModule {
   private getBodyInfo(body: FileBody): {
     contentType: string;
     size: number;
-    normalizedBody: Blob | ArrayBuffer | Uint8Array;
+    normalizedBody: Blob | ArrayBuffer;
   } {
     if (typeof Blob !== "undefined" && body instanceof Blob) {
       return {
@@ -73,14 +73,14 @@ export class Storage extends SDKModule {
         return {
           contentType: detectedType,
           size: decoded.byteLength,
-          normalizedBody: decoded,
+          normalizedBody: new Blob([decoded.buffer as ArrayBuffer]),
         };
       }
       const encoded = new TextEncoder().encode(body);
       return {
         contentType: "text/plain",
         size: encoded.length,
-        normalizedBody: encoded,
+        normalizedBody: new Blob([encoded.buffer as ArrayBuffer]),
       };
     }
     throw new NoCloudAPIError("Unsupported body type", 400);
@@ -153,7 +153,7 @@ export class Storage extends SDKModule {
       },
       body: stream,
       duplex: "half",
-    });
+    } as RequestInit);
 
     if (!uploadResponse.ok) {
       const errorText = await uploadResponse
