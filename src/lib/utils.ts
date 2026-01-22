@@ -18,7 +18,7 @@ export function delay(ms: number): Promise<void> {
 export async function withRetry<T = any>(
   fn: () => Promise<T>,
   retries: number = 3,
-  delayMs: number = 1000
+  delayMs: number = 1000,
 ): Promise<T> {
   let lastError: unknown;
 
@@ -95,4 +95,28 @@ export function extractBase64Data(str: string): string {
 export function getBase64DecodedSize(base64: string): number {
   const padding = (base64.match(/=+$/) || [""])[0].length;
   return Math.floor((base64.length * 3) / 4) - padding;
+}
+
+/**
+ * Decodes a base64 string to a Uint8Array.
+ * @param base64 - The raw base64 string (not a data URL).
+ * @returns The decoded binary data as Uint8Array.
+ */
+export function decodeBase64(base64: string): Uint8Array {
+  const binaryString = atob(base64);
+  const bytes = new Uint8Array(binaryString.length);
+  for (let i = 0; i < binaryString.length; i++) {
+    bytes[i] = binaryString.charCodeAt(i);
+  }
+  return bytes;
+}
+
+/**
+ * Normalizes a MIME type by stripping parameters like charset.
+ * e.g. "text/plain;charset=utf-8" -> "text/plain"
+ * @param mimeType - The MIME type to normalize.
+ * @returns The normalized MIME type without parameters.
+ */
+export function normalizeMimeType(mimeType: string): string {
+  return mimeType.split(";")[0]?.trim() ?? mimeType;
 }

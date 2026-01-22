@@ -1,10 +1,11 @@
 import { NoCloudAPIError } from "@/lib";
-import { SDKModule } from "@/lib/sdk-module";
 import { resolveJsonResponse } from "@/lib/resolvers";
+import { SDKModule } from "@/lib/sdk-module";
 import {
+  decodeBase64,
   detectBase64MimeType,
   extractBase64Data,
-  getBase64DecodedSize,
+  normalizeMimeType,
 } from "@/lib/utils";
 import type {
   FileBody,
@@ -28,47 +29,58 @@ export class Storage extends SDKModule {
   async generateSignedUrl(
     contentType: string,
     size: number,
-    metadata?: FileMetadata
+    metadata?: FileMetadata,
   ): Promise<SignedUrlResponse> {
-    const response = await this.fetch("storage/signed-url", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        contentType,
-        size,
-        metadata,
-      }),
-    });
+    const queryParams = new URLSearchParams();
+    queryParams.append("contentType", contentType);
+    queryParams.append("size", size.toString());
+    const response = await this.fetch(
+      `storage/signed-url?${queryParams.toString()}`,
+    );
 
     return resolveJsonResponse<SignedUrlResponse>(response);
   }
 
   /**
-   * Extracts content type and size from the body.
+   * Extracts content type, size, and normalized body from the input.
+   * For base64 strings, this decodes them to binary.
    */
-  private getBodyInfo(body: FileBody): { contentType: string; size: number } {
+  private getBodyInfo(body: FileBody): {
+    contentType: string;
+    size: number;
+    normalizedBody: Blob | ArrayBuffer | Uint8Array;
+  } {
     if (typeof Blob !== "undefined" && body instanceof Blob) {
       return {
-        contentType: body.type || "application/octet-stream",
+        contentType: normalizeMimeType(body.type) || "application/octet-stream",
         size: body.size,
+        normalizedBody: body,
       };
     }
     if (typeof ArrayBuffer !== "undefined" && body instanceof ArrayBuffer) {
-      return { contentType: "application/octet-stream", size: body.byteLength };
+      return {
+        contentType: "application/octet-stream",
+        size: body.byteLength,
+        normalizedBody: body,
+      };
     }
     if (typeof body === "string") {
       const detectedType = detectBase64MimeType(body);
       if (detectedType) {
-        // It's base64 - calculate decoded size
+        // It's base64 - decode to binary
         const rawBase64 = extractBase64Data(body);
-        const size = getBase64DecodedSize(rawBase64);
-        return { contentType: detectedType, size };
+        const decoded = decodeBase64(rawBase64);
+        return {
+          contentType: detectedType,
+          size: decoded.byteLength,
+          normalizedBody: decoded,
+        };
       }
+      const encoded = new TextEncoder().encode(body);
       return {
         contentType: "text/plain",
-        size: new TextEncoder().encode(body).length,
+        size: encoded.length,
+        normalizedBody: encoded,
       };
     }
     throw new NoCloudAPIError("Unsupported body type", 400);
@@ -83,22 +95,21 @@ export class Storage extends SDKModule {
    */
   async upload(
     body: FileBody,
-    metadata?: FileMetadata
+    metadata?: FileMetadata,
   ): Promise<UploadResponse> {
-    const { contentType, size } = this.getBodyInfo(body);
+    const { contentType, size, normalizedBody } = this.getBodyInfo(body);
     const { url, mediaUrl, mediaId } = await this.generateSignedUrl(
       contentType,
       size,
-      metadata
+      metadata,
     );
 
     const uploadResponse = await fetch(url, {
       method: "PUT",
       headers: {
-        "Content-Type": contentType,
         "Content-Length": size.toString(),
       },
-      body,
+      body: normalizedBody,
     });
 
     if (!uploadResponse.ok) {
@@ -107,7 +118,7 @@ export class Storage extends SDKModule {
         .catch(() => uploadResponse.statusText);
       throw new NoCloudAPIError(
         `Failed to upload file to R2: ${errorText}`,
-        uploadResponse.status
+        uploadResponse.status,
       );
     }
 
@@ -127,18 +138,17 @@ export class Storage extends SDKModule {
     stream: ReadableStream,
     contentType: string,
     contentLength: number,
-    metadata?: FileMetadata
+    metadata?: FileMetadata,
   ): Promise<UploadResponse> {
     const { url, mediaUrl, mediaId } = await this.generateSignedUrl(
       contentType,
       contentLength,
-      metadata
+      metadata,
     );
 
     const uploadResponse = await fetch(url, {
       method: "PUT",
       headers: {
-        "Content-Type": contentType,
         "Content-Length": contentLength.toString(),
       },
       body: stream,
@@ -151,7 +161,7 @@ export class Storage extends SDKModule {
         .catch(() => uploadResponse.statusText);
       throw new NoCloudAPIError(
         `Failed to upload stream to R2: ${errorText}`,
-        uploadResponse.status
+        uploadResponse.status,
       );
     }
 
@@ -169,6 +179,6 @@ export class Storage extends SDKModule {
       method: "DELETE",
     });
 
-    return resolveJsonResponse<void>(response);
+    await resolveJsonResponse<void>(response);
   }
 }

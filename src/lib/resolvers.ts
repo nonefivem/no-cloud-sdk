@@ -8,13 +8,10 @@ import { NoCloudAPIError } from "./errors";
  */
 export async function resolveJsonResponse<T>(response: Response): Promise<T> {
   if (!response.ok) {
-    try {
-      const err = (await response.json()) as { message?: string };
-
-      throw new NoCloudAPIError(err.message || "API Error", response.status);
-    } catch (e) {
-      throw new NoCloudAPIError("Unknown error", response.status);
-    }
+    const err = (await response.json().catch(() => ({}))) as {
+      message?: string;
+    };
+    throw new NoCloudAPIError(err.message || "Unknown error", response.status);
   }
 
   return (await response.json()) as T;

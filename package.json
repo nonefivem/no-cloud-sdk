@@ -1,6 +1,6 @@
 {
   "name": "@nocloud/sdk",
-  "version": "0.1.1",
+  "version": "0.1.11",
   "description": "Official SDK for NoCloud services - file storage and more",
   "author": {
     "name": "sinanovicanes",
@@ -55,10 +55,12 @@
     "build:types": "bun x dts-bundle-generator -o ./dist/index.d.ts ./src/index.ts --project ./tsconfig.build.json --no-check",
     "clean": "rm -rf dist",
     "prepublishOnly": "bun run build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "bun test"
   },
   "private": false,
   "devDependencies": {
+    "@types/bun": "^1.3.6",
     "@types/node": "^22.0.0",
     "typescript": "^5.7.0"
   },

@@ -28,6 +28,12 @@ jobs:
       - name: Build
         run: bun run build
 
+      - name: Run tests
+        run: bun test
+        env:
+          NOCLOUD_API_URL: "https://api.stage.nonefivem.com"
+          NOCLOUD_API_KEY: ${{ secrets.NO_CLOUD_API_KEY }}
+
       - name: Verify build output
         run: |
           test -f dist/index.js || exit 1
