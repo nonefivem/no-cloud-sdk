@@ -1,4 +1,4 @@
-import { API_BASE_URL } from "./constants";
+import { API_BASE_URL, DEFAULT_BASE_PATH } from "./constants";
 import { withRetry } from "./utils";
 
 interface FetchOptionsBase {
@@ -9,19 +9,25 @@ interface FetchOptionsBase {
 interface FetcherOptions extends FetchOptionsBase {
   apiKey: string;
   baseUrl?: string;
+  basePath?: string;
 }
 
 export type FetchOptions = RequestInit & FetchOptionsBase;
 
 export class Fetcher {
   private readonly baseUrl: string;
+  private readonly basePath: string;
   private readonly apiKey: string;
   private readonly retryCount: number;
   private readonly retryDelayMs: number;
 
   constructor(options: FetcherOptions) {
     this.apiKey = options.apiKey;
-    this.baseUrl = options.baseUrl || API_BASE_URL;
+    this.baseUrl = (options.baseUrl || API_BASE_URL).replace(/\/+$/, "");
+    this.basePath = (options.basePath ?? DEFAULT_BASE_PATH).replace(
+      /^\/+|\/+$/g,
+      "",
+    );
     this.retryCount = options.retries ?? 3;
     this.retryDelayMs = options.retryDelayMs ?? 1000;
 
@@ -31,7 +37,8 @@ export class Fetcher {
   }
 
   private buildUrl(endpoint: string): string {
-    return `${this.baseUrl}/cloud/${endpoint}`;
+    const path = this.basePath ? `${this.basePath}/${endpoint}` : endpoint;
+    return `${this.baseUrl}/${path}`;
   }
 
   fetch(endpoint: string, options: FetchOptions = {}): Promise<Response> {
@@ -47,7 +54,7 @@ export class Fetcher {
           },
         }),
       options.retries ?? this.retryCount,
-      options.retryDelayMs ?? this.retryDelayMs
+      options.retryDelayMs ?? this.retryDelayMs,
     );
   }
 }

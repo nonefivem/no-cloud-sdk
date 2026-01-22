@@ -12,6 +12,11 @@ export interface NoCloudOptions {
    */
   baseUrl?: string;
   /**
+   * Optional base path for API endpoints.
+   * @default "/cloud"
+   */
+  basePath?: string;
+  /**
    * Number of retry attempts for failed requests.
    * @default 3
    */
@@ -67,6 +72,7 @@ export class NoCloud {
     this.fetcher = new Fetcher({
       apiKey: options.apiKey,
       baseUrl: options.baseUrl,
+      basePath: options.basePath,
       retries: options.retries,
       retryDelayMs: options.retryDelayMs,
     });
