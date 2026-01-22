@@ -63,7 +63,7 @@ describe("Storage API (Stage)", () => {
       expect(response.url).toBeString();
 
       // Clean up
-      // await cloud.storage.delete(response.id);
+      await cloud.storage.delete(response.id);
     });
 
     it("should upload an ArrayBuffer", async () => {
@@ -76,7 +76,7 @@ describe("Storage API (Stage)", () => {
       expect(response.url).toBeString();
 
       // Clean up
-      // await cloud.storage.delete(response.id);
+      await cloud.storage.delete(response.id);
     });
 
     it("should upload a base64 encoded image", async () => {
@@ -91,7 +91,7 @@ describe("Storage API (Stage)", () => {
       expect(response.url).toBeString();
 
       // Clean up
-      // await cloud.storage.delete(response.id);
+      await cloud.storage.delete(response.id);
     });
   });
 
