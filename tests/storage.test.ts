@@ -1,21 +1,32 @@
-import { beforeAll, describe, expect, it } from "bun:test";
+import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { NoCloud } from "../src";
 
 describe("Storage API (Stage)", () => {
   let cloud: NoCloud;
+  let uploadedMediaIds: string[] = [];
 
   beforeAll(() => {
     const apiKey = process.env.NOCLOUD_API_KEY;
     if (!apiKey) {
       throw new Error(
-        "NOCLOUD_API_KEY environment variable is required. Set it before running tests.",
+        "NOCLOUD_API_KEY environment variable is required. Set it before running tests."
       );
     }
 
     cloud = new NoCloud({
       apiKey,
-      baseUrl: process.env.NOCLOUD_API_URL,
+      baseUrl: process.env.NOCLOUD_API_URL
     });
+  });
+
+  afterAll(async () => {
+    for (const mediaId of uploadedMediaIds) {
+      try {
+        await cloud.storage.delete(mediaId);
+      } catch (error) {
+        console.warn(`Failed to delete media ID ${mediaId}:`, error);
+      }
+    }
   });
 
   describe("generateSignedUrl", () => {
@@ -23,7 +34,7 @@ describe("Storage API (Stage)", () => {
       const response = await cloud.storage.generateSignedUrl(
         "image/png",
         1024,
-        { test: true },
+        { test: true }
       );
 
       expect(response).toBeDefined();
@@ -38,60 +49,48 @@ describe("Storage API (Stage)", () => {
     it("should upload a text file", async () => {
       const content = "Hello, NoCloud!";
       const blob = new Blob([content], { type: "text/plain" });
-
       const response = await cloud.storage.upload(blob);
 
       expect(response).toBeDefined();
       expect(response.id).toBeString();
       expect(response.url).toBeString();
-
-      // Clean up
-      // await cloud.storage.delete(response.id);
+      uploadedMediaIds.push(response.id);
     });
 
     it("should upload a file with metadata", async () => {
       const content = "Test file with metadata";
       const blob = new Blob([content], { type: "text/plain" });
-
       const response = await cloud.storage.upload(blob, {
         fileName: "test.txt",
-        testRun: true,
+        testRun: true
       });
 
       expect(response).toBeDefined();
       expect(response.id).toBeString();
       expect(response.url).toBeString();
-
-      // Clean up
-      await cloud.storage.delete(response.id);
+      uploadedMediaIds.push(response.id);
     });
 
     it("should upload an ArrayBuffer", async () => {
       const buffer = new TextEncoder().encode("ArrayBuffer content").buffer;
-
       const response = await cloud.storage.upload(buffer);
 
       expect(response).toBeDefined();
       expect(response.id).toBeString();
       expect(response.url).toBeString();
-
-      // Clean up
-      await cloud.storage.delete(response.id);
+      uploadedMediaIds.push(response.id);
     });
 
     it("should upload a base64 encoded image", async () => {
       // Small 1x1 red PNG
       const base64Image =
         "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==";
-
       const response = await cloud.storage.upload(base64Image);
 
       expect(response).toBeDefined();
       expect(response.id).toBeString();
       expect(response.url).toBeString();
-
-      // Clean up
-      await cloud.storage.delete(response.id);
+      uploadedMediaIds.push(response.id);
     });
   });
 
@@ -117,26 +116,22 @@ describe("Storage API (Stage)", () => {
       const content = "Stream content for upload";
       const encoder = new TextEncoder();
       const encoded = encoder.encode(content);
-
       const stream = new ReadableStream({
         start(controller) {
           controller.enqueue(encoded);
           controller.close();
-        },
+        }
       });
-
       const response = await cloud.storage.uploadStream(
         stream,
         "text/plain",
-        encoded.byteLength,
+        encoded.byteLength
       );
 
       expect(response).toBeDefined();
       expect(response.id).toBeString();
       expect(response.url).toBeString();
-
-      // Clean up
-      await cloud.storage.delete(response.id);
+      uploadedMediaIds.push(response.id);
     });
   });
 });
