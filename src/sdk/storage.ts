@@ -5,13 +5,13 @@ import {
   decodeBase64,
   detectBase64MimeType,
   extractBase64Data,
-  normalizeMimeType,
+  normalizeMimeType
 } from "@/lib/utils";
 import type {
   FileBody,
   FileMetadata,
   SignedUrlResponse,
-  UploadResponse,
+  UploadResponse
 } from "@/types";
 
 /**
@@ -29,13 +29,13 @@ export class Storage extends SDKModule {
   async generateSignedUrl(
     contentType: string,
     size: number,
-    metadata?: FileMetadata,
+    metadata?: FileMetadata
   ): Promise<SignedUrlResponse> {
     const queryParams = new URLSearchParams();
     queryParams.append("contentType", contentType);
     queryParams.append("size", size.toString());
     const response = await this.fetch(
-      `storage/signed-url?${queryParams.toString()}`,
+      `storage/signed-url?${queryParams.toString()}`
     );
 
     return resolveJsonResponse<SignedUrlResponse>(response);
@@ -54,14 +54,14 @@ export class Storage extends SDKModule {
       return {
         contentType: normalizeMimeType(body.type) || "application/octet-stream",
         size: body.size,
-        normalizedBody: body,
+        normalizedBody: body
       };
     }
     if (typeof ArrayBuffer !== "undefined" && body instanceof ArrayBuffer) {
       return {
         contentType: "application/octet-stream",
         size: body.byteLength,
-        normalizedBody: body,
+        normalizedBody: body
       };
     }
     if (typeof body === "string") {
@@ -73,14 +73,14 @@ export class Storage extends SDKModule {
         return {
           contentType: detectedType,
           size: decoded.byteLength,
-          normalizedBody: new Blob([decoded.buffer as ArrayBuffer]),
+          normalizedBody: new Blob([decoded.buffer as ArrayBuffer])
         };
       }
       const encoded = new TextEncoder().encode(body);
       return {
         contentType: "text/plain",
         size: encoded.length,
-        normalizedBody: new Blob([encoded.buffer as ArrayBuffer]),
+        normalizedBody: new Blob([encoded.buffer as ArrayBuffer])
       };
     }
     throw new NoCloudAPIError("Unsupported body type", 400);
@@ -95,21 +95,21 @@ export class Storage extends SDKModule {
    */
   async upload(
     body: FileBody,
-    metadata?: FileMetadata,
+    metadata?: FileMetadata
   ): Promise<UploadResponse> {
     const { contentType, size, normalizedBody } = this.getBodyInfo(body);
     const { url, mediaUrl, mediaId } = await this.generateSignedUrl(
       contentType,
       size,
-      metadata,
+      metadata
     );
 
     const uploadResponse = await fetch(url, {
       method: "PUT",
       headers: {
-        "Content-Length": size.toString(),
+        "Content-Length": size.toString()
       },
-      body: normalizedBody,
+      body: normalizedBody
     });
 
     if (!uploadResponse.ok) {
@@ -118,7 +118,7 @@ export class Storage extends SDKModule {
         .catch(() => uploadResponse.statusText);
       throw new NoCloudAPIError(
         `Failed to upload file to R2: ${errorText}`,
-        uploadResponse.status,
+        uploadResponse.status
       );
     }
 
@@ -138,21 +138,21 @@ export class Storage extends SDKModule {
     stream: ReadableStream,
     contentType: string,
     contentLength: number,
-    metadata?: FileMetadata,
+    metadata?: FileMetadata
   ): Promise<UploadResponse> {
     const { url, mediaUrl, mediaId } = await this.generateSignedUrl(
       contentType,
       contentLength,
-      metadata,
+      metadata
     );
 
     const uploadResponse = await fetch(url, {
       method: "PUT",
       headers: {
-        "Content-Length": contentLength.toString(),
+        "Content-Length": contentLength.toString()
       },
       body: stream,
-      duplex: "half",
+      duplex: "half"
     } as RequestInit);
 
     if (!uploadResponse.ok) {
@@ -161,7 +161,7 @@ export class Storage extends SDKModule {
         .catch(() => uploadResponse.statusText);
       throw new NoCloudAPIError(
         `Failed to upload stream to R2: ${errorText}`,
-        uploadResponse.status,
+        uploadResponse.status
       );
     }
 
@@ -170,15 +170,44 @@ export class Storage extends SDKModule {
 
   /**
    * Deletes a media file from the storage.
-   * @param mediaId The ID of the media file to be deleted.
+   * @param mediaId - The ID of the media to delete, or an array of IDs for batch deletion (max 100 per batch).
    * @returns {Promise<void>} A promise that resolves when the deletion is complete.
    * @throws {NoCloudAPIError} If the deletion fails.
    */
-  async delete(mediaId: string): Promise<void> {
-    const response = await this.fetch(`storage/${mediaId}`, {
-      method: "DELETE",
-    });
+  async delete(mediaId: string | string[]): Promise<void> {
+    // Handle single ID deletion - direct API call
+    if (!Array.isArray(mediaId)) {
+      const response = await this.fetch(`storage/${mediaId}`, {
+        method: "DELETE"
+      });
+      await resolveJsonResponse<void>(response);
+      return;
+    }
 
-    await resolveJsonResponse<void>(response);
+    if (mediaId.length === 0) {
+      return;
+    }
+
+    if (mediaId.length === 1) {
+      return this.delete(mediaId[0]!);
+    }
+
+    const BATCH_SIZE = 100;
+    const totalBatches = Math.ceil(mediaId.length / BATCH_SIZE);
+
+    for (let i = 0; i < totalBatches; i++) {
+      const start = i * BATCH_SIZE;
+      const end = Math.min(start + BATCH_SIZE, mediaId.length);
+      const batch = mediaId.slice(start, end);
+      const response = await this.fetch("storage/bulk", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ ids: batch })
+      });
+
+      await resolveJsonResponse<void>(response);
+    }
   }
 }
