@@ -83,7 +83,7 @@ export class Storage extends SDKModule {
         normalizedBody: new Blob([encoded.buffer as ArrayBuffer])
       };
     }
-    throw new NoCloudAPIError("Unsupported body type", 400);
+    throw NoCloudAPIError.fromStatus(400, "Unsupported body type");
   }
 
   /**
@@ -116,9 +116,9 @@ export class Storage extends SDKModule {
       const errorText = await uploadResponse
         .text()
         .catch(() => uploadResponse.statusText);
-      throw new NoCloudAPIError(
-        `Failed to upload file to R2: ${errorText}`,
-        uploadResponse.status
+      throw NoCloudAPIError.fromStatus(
+        uploadResponse.status,
+        `Failed to upload file to R2: ${errorText}`
       );
     }
 
@@ -159,9 +159,9 @@ export class Storage extends SDKModule {
       const errorText = await uploadResponse
         .text()
         .catch(() => uploadResponse.statusText);
-      throw new NoCloudAPIError(
-        `Failed to upload stream to R2: ${errorText}`,
-        uploadResponse.status
+      throw NoCloudAPIError.fromStatus(
+        uploadResponse.status,
+        `Failed to upload stream to R2: ${errorText}`
       );
     }
 

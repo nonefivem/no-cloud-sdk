@@ -59,7 +59,7 @@ const cloud = new NoCloud({
   apiKey: "your-api-key",
   baseUrl: "https://api.nonefivem.com", // optional
   retries: 3, // optional
-  retryDelayMs: 1000, // optional
+  retryDelayMs: 1000 // optional
 });
 ```
 
@@ -83,7 +83,7 @@ const { id, url } = await cloud.storage.upload(base64);
 // With metadata
 const { id, url } = await cloud.storage.upload(file, {
   userId: "123",
-  category: "avatars",
+  category: "avatars"
 });
 ```
 
@@ -94,7 +94,7 @@ const stream = getReadableStream();
 const { id, url } = await cloud.storage.uploadStream(
   stream,
   "video/mp4",
-  fileSize,
+  fileSize
 );
 ```
 
@@ -121,6 +121,10 @@ Base64 strings with data URLs (`data:image/png;base64,...`) or raw base64 are au
 
 ## ⚠️ Error Handling
 
+The SDK provides detailed error handling through `NoCloudAPIError` and `NoCloudError` enum.
+
+### Basic Error Handling
+
 ```typescript
 import { NoCloud, NoCloudAPIError } from "@nocloud/sdk";
 
@@ -128,7 +132,28 @@ try {
   await cloud.storage.upload(file);
 } catch (error) {
   if (error instanceof NoCloudAPIError) {
-    console.error(`API Error: ${error.message} (${error.status})`);
+    console.error(`API Error: ${error.message}`);
+    console.error(`Status: ${error.status}`);
+    console.error(`Code: ${error.code}`);
+  }
+}
+```
+
+### Check for Specific Errors
+
+```typescript
+import { NoCloudAPIError, NoCloudError } from "@nocloud/sdk";
+
+try {
+  await cloud.storage.upload(file);
+} catch (error) {
+  // Using the static isError method
+  if (NoCloudAPIError.isError(error, NoCloudError.RATE_LIMIT_EXCEEDED)) {
+    console.log("Rate limited, retry later");
+  } else if (NoCloudAPIError.isError(error, NoCloudError.INVALID_API_KEY)) {
+    console.log("Check your API key");
+  } else if (NoCloudAPIError.isError(error)) {
+    console.log(`Other API error: ${error.code}`);
   }
 }
 ```
