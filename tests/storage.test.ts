@@ -20,12 +20,10 @@ describe("Storage API (Stage)", () => {
   });
 
   afterAll(async () => {
-    for (const mediaId of uploadedMediaIds) {
-      try {
-        await cloud.storage.delete(mediaId);
-      } catch (error) {
-        console.warn(`Failed to delete media ID ${mediaId}:`, error);
-      }
+    try {
+      await cloud.storage.delete(uploadedMediaIds);
+    } catch (e) {
+      console.error("Error cleaning up uploaded media:", e);
     }
   });
 
