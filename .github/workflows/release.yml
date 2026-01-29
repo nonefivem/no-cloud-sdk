@@ -24,8 +24,14 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run build
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "latest"
+          registry-url: "https://registry.npmjs.org"
+
       - name: Publish to npm
-        run: bun publish --access public
+        run: npm publish --access public
 
   github-release:
     name: Create GitHub Release
