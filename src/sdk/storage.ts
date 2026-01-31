@@ -34,6 +34,7 @@ export class Storage extends SDKModule {
     const queryParams = new URLSearchParams();
     queryParams.append("contentType", contentType);
     queryParams.append("size", size.toString());
+    if (metadata) queryParams.append("metadata", JSON.stringify(metadata));
     const response = await this.fetch(
       `storage/signed-url?${queryParams.toString()}`
     );
