@@ -28,17 +28,25 @@ describe("Storage API (Stage)", () => {
   });
 
   describe("generateSignedUrl", () => {
-    it("should generate a signed URL for file upload", async () => {
-      const response = await cloud.storage.generateSignedUrl(
-        "image/png",
-        1024,
-        { test: true }
-      );
+    it("should generate a preallocated signed URL for file upload", async () => {
+      const response = await cloud.storage.generateSignedUrl({
+        contentType: "image/png",
+        size: 1024,
+        metadata: { test: true }
+      });
 
       expect(response).toBeDefined();
       expect(response.url).toBeString();
       expect(response.mediaId).toBeString();
       expect(response.mediaUrl).toBeString();
+      expect(response.expiresAt).toBeString();
+    });
+
+    it("should generate non preallocated signed URL for file upload", async () => {
+      const response = await cloud.storage.generateSignedUrl();
+
+      expect(response).toBeDefined();
+      expect(response.url).toBeString();
       expect(response.expiresAt).toBeString();
     });
   });

@@ -28,6 +28,24 @@ export interface UploadResponse {
 }
 
 /**
+ * Payload for requesting a pre-allocated signed URL for uploading media.
+ */
+export interface PreAllocatedSignedUrlPayload {
+  /**
+   * The MIME type of the file.
+   */
+  contentType: string;
+  /**
+   * The size of the file in bytes.
+   */
+  size: number;
+  /**
+   * Optional metadata associated with the file.
+   */
+  metadata?: FileMetadata;
+}
+
+/**
  * Response returned when requesting a signed URL for uploading media.
  */
 export interface SignedUrlResponse {
@@ -39,6 +57,9 @@ export interface SignedUrlResponse {
    * The expiration time of the signed URL in ISO 8601 format.
    */
   expiresAt: string;
+}
+
+export interface PreAllocatedSignedUrlResponse extends SignedUrlResponse {
   /**
    * The unique identifier for the media after upload.
    */

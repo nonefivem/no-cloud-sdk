@@ -10,6 +10,8 @@ import {
 import type {
   FileBody,
   FileMetadata,
+  PreAllocatedSignedUrlPayload,
+  PreAllocatedSignedUrlResponse,
   SignedUrlResponse,
   UploadResponse
 } from "@/types";
@@ -20,26 +22,39 @@ import type {
 export class Storage extends SDKModule {
   /**
    * Generates a signed URL for uploading a file.
-   * @param contentType - The MIME type of the file.
-   * @param size - The size of the file in bytes.
-   * @param metadata - Optional metadata associated with the file.
-   * @returns {Promise<SignedUrlResponse>} An object containing the signed URL and its expiration time.
+   * @param options - The pre-allocation options including contentType, size, and metadata.
+   * @returns {Promise<PreAllocatedSignedUrlResponse>} An object containing the signed URL, media ID, and media URL.
    * @throws {NoCloudAPIError} If the API request fails.
    */
   async generateSignedUrl(
-    contentType: string,
-    size: number,
-    metadata?: FileMetadata
-  ): Promise<SignedUrlResponse> {
-    const queryParams = new URLSearchParams();
-    queryParams.append("contentType", contentType);
-    queryParams.append("size", size.toString());
-    if (metadata) queryParams.append("metadata", JSON.stringify(metadata));
-    const response = await this.fetch(
-      `storage/signed-url?${queryParams.toString()}`
-    );
+    options: PreAllocatedSignedUrlPayload
+  ): Promise<PreAllocatedSignedUrlResponse>;
+  /**
+   * Generates a signed URL for uploading a file without pre-allocation.
+   * @returns {Promise<SignedUrlResponse>} An object containing the signed URL and its expiration time.
+   * @throws {NoCloudAPIError} If the API request fails.
+   */
+  async generateSignedUrl(): Promise<SignedUrlResponse>;
+  async generateSignedUrl(
+    options?: PreAllocatedSignedUrlPayload
+  ): Promise<SignedUrlResponse | PreAllocatedSignedUrlResponse> {
+    let url = "storage/signed-url";
 
-    return resolveJsonResponse<SignedUrlResponse>(response);
+    if (options) {
+      const params = new URLSearchParams();
+      params.append("contentType", options.contentType);
+      params.append("size", options.size.toString());
+      if (options.metadata) {
+        params.append("metadata", JSON.stringify(options.metadata));
+      }
+      url += `?${params.toString()}`;
+    }
+
+    const response = await this.fetch(url);
+
+    return resolveJsonResponse<
+      SignedUrlResponse | PreAllocatedSignedUrlResponse
+    >(response);
   }
 
   /**
@@ -99,11 +114,11 @@ export class Storage extends SDKModule {
     metadata?: FileMetadata
   ): Promise<UploadResponse> {
     const { contentType, size, normalizedBody } = this.getBodyInfo(body);
-    const { url, mediaUrl, mediaId } = await this.generateSignedUrl(
+    const { url, mediaUrl, mediaId } = await this.generateSignedUrl({
       contentType,
       size,
       metadata
-    );
+    });
 
     const uploadResponse = await fetch(url, {
       method: "PUT",
@@ -141,11 +156,11 @@ export class Storage extends SDKModule {
     contentLength: number,
     metadata?: FileMetadata
   ): Promise<UploadResponse> {
-    const { url, mediaUrl, mediaId } = await this.generateSignedUrl(
+    const { url, mediaUrl, mediaId } = await this.generateSignedUrl({
       contentType,
-      contentLength,
+      size: contentLength,
       metadata
-    );
+    });
 
     const uploadResponse = await fetch(url, {
       method: "PUT",
