@@ -51,6 +51,34 @@ describe("Storage API (Stage)", () => {
     });
   });
 
+  describe("uploadToSignedUrl", () => {
+    it("should upload a file to a non preallocated signed URL", async () => {
+      const content = "File content for signed URL upload";
+      const blob = new Blob([content], { type: "text/plain" });
+      const signedUrlResponse = await cloud.storage.generateSignedUrl();
+
+      expect(signedUrlResponse).toBeDefined();
+      expect(signedUrlResponse.url).toBeString();
+
+      const body = new FormData();
+      body.append("file", blob, "test.txt");
+
+      const uploadResponse = await fetch(signedUrlResponse.url, {
+        method: "POST",
+        body
+      });
+
+      expect(uploadResponse.ok).toBe(true); // No response expected for successful upload
+
+      const uploadedMedia = await uploadResponse.json();
+
+      expect(uploadedMedia).toBeDefined();
+      expect(uploadedMedia.id).toBeString();
+      expect(uploadedMedia.url).toBeString();
+      uploadedMediaIds.push(uploadedMedia.id);
+    });
+  });
+
   describe("upload", () => {
     it("should upload a text file", async () => {
       const content = "Hello, NoCloud!";
