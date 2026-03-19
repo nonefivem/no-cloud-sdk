@@ -77,6 +77,33 @@ describe("Storage API (Stage)", () => {
       expect(uploadedMedia.url).toBeString();
       uploadedMediaIds.push(uploadedMedia.id);
     });
+
+    it("should fail when trying to upload to a preallocated signed URL with invalid size", async () => {
+      const content = "File content for preallocated signed URL upload";
+      const blob = new Blob([content], { type: "text/plain" });
+      const signedUrlResponse = await cloud.storage.generateSignedUrl({
+        contentType: "text/plain",
+        size: blob.size,
+        metadata: { test: true }
+      });
+
+      expect(signedUrlResponse).toBeDefined();
+      expect(signedUrlResponse.url).toBeString();
+
+      const body = new FormData();
+      body.append(
+        "file",
+        new Blob(["invalid content"], { type: "text/plain" }),
+        "test.txt"
+      );
+
+      const uploadResponse = await fetch(signedUrlResponse.url, {
+        method: "POST",
+        body
+      });
+
+      expect(uploadResponse.ok).toBe(false); // Should fail for preallocated URLs
+    });
   });
 
   describe("upload", () => {
