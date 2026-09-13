@@ -26,7 +26,10 @@
     "r2",
     "s3",
     "file-upload",
-    "api"
+    "api",
+    "feature-flags",
+    "feature-toggles",
+    "flags"
   ],
   "type": "module",
   "main": "./dist/index.js",

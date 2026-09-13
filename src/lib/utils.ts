@@ -120,3 +120,24 @@ export function decodeBase64(base64: string): Uint8Array {
 export function normalizeMimeType(mimeType: string): string {
   return mimeType.split(";")[0]?.trim() ?? mimeType;
 }
+
+/**
+ * Builds a query string from a set of parameters, skipping any that are
+ * undefined or null.
+ * @param params - The query parameters.
+ * @returns A query string prefixed with "?", or an empty string if there are no
+ * parameters to send.
+ */
+export function buildQueryString(
+  params: Record<string, string | number | boolean | undefined | null>,
+): string {
+  const search = new URLSearchParams();
+
+  for (const [key, value] of Object.entries(params)) {
+    if (value === undefined || value === null) continue;
+    search.append(key, String(value));
+  }
+
+  const query = search.toString();
+  return query ? `?${query}` : "";
+}

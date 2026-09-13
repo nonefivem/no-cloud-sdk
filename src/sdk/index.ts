@@ -1,5 +1,8 @@
 import { Fetcher } from "@/lib";
+import { Flags } from "./flags";
 import { Storage } from "./storage";
+
+export * from "./flags";
 
 export interface NoCloudOptions {
   /**
@@ -26,6 +29,12 @@ export interface NoCloudOptions {
    * @default 1000
    */
   retryDelayMs?: number;
+  /**
+   * How long a fetched feature flag configuration is served from memory before
+   * the next read goes back to the API.
+   * @default 10
+   */
+  flagsCacheTtlSeconds?: number;
 }
 
 /**
@@ -46,6 +55,7 @@ export interface NoCloudOptions {
  */
 export class NoCloud {
   private readonly fetcher;
+  private readonly flagsCacheTtlSeconds?: number;
 
   /**
    * Creates an instance of the NoCloud SDK.
@@ -76,6 +86,7 @@ export class NoCloud {
       retries: options.retries,
       retryDelayMs: options.retryDelayMs,
     });
+    this.flagsCacheTtlSeconds = options.flagsCacheTtlSeconds;
   }
 
   private _storage?: Storage;
@@ -84,5 +95,13 @@ export class NoCloud {
    */
   get storage(): Storage {
     return (this._storage ??= new Storage(this.fetcher));
+  }
+
+  private _flags?: Flags;
+  /**
+   * Feature flags module for reading and managing feature flags.
+   */
+  get flags(): Flags {
+    return (this._flags ??= new Flags(this.fetcher, this.flagsCacheTtlSeconds));
   }
 }
