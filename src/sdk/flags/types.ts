@@ -40,6 +40,18 @@ export type JsonRecord = { [key: string]: JsonValue };
 export type FeatureFlagType = "boolean" | "string" | "number" | "json";
 
 /**
+ * Where a flag may be read.
+ *
+ * Your server always receives every flag - it is the trusted side, and the one
+ * holding the API key. The runtime says whether the value may also reach
+ * players' clients, which your server is what relays.
+ *
+ * There is no client-only runtime: a value the client can read is one the
+ * server has already been sent.
+ */
+export type FeatureFlagRuntime = "server" | "shared";
+
+/**
  * A flag's type paired with a value that matches it.
  *
  * Written as a union so the compiler rejects a `number` flag holding a string,
@@ -62,6 +74,12 @@ export interface FlagConfigEntry {
   key: string;
   type: FeatureFlagType;
   value: JsonValue;
+  /**
+   * Whether this flag may be relayed to clients. Every flag reaches your
+   * server, so your server is what enforces this - a `server` flag must never
+   * be forwarded to a player.
+   */
+  runtime: FeatureFlagRuntime;
 }
 
 /**
@@ -104,6 +122,7 @@ export interface FeatureFlag {
   description: string | null;
   type: FeatureFlagType;
   value: JsonValue;
+  runtime: FeatureFlagRuntime;
   archived: boolean;
   createdAt: string;
   updatedAt: string;
@@ -163,6 +182,13 @@ export type CreateFlagPayload = {
   key: string;
   name: string;
   description?: string;
+  /**
+   * Whether the value may reach players' clients.
+   *
+   * Defaults to `shared`, so a flag is client-readable unless it says
+   * otherwise - anything holding a secret must be created as `server`.
+   */
+  runtime?: FeatureFlagRuntime;
 } & FlagValuePair;
 
 /**
@@ -170,6 +196,9 @@ export type CreateFlagPayload = {
  *
  * Keys are immutable - servers reference a flag by key, so renaming one would
  * silently orphan every server reading it.
+ *
+ * The runtime is not immutable: a flag made client-readable by mistake has to be
+ * closable without recreating it under a new key.
  *
  * Changing the value means restating the type. The pair is what servers parse,
  * and passing them together is what keeps a number flag from ending up holding
@@ -179,7 +208,25 @@ export type UpdateFlagPayload = {
   name?: string;
   description?: string | null;
   archived?: boolean;
+  runtime?: FeatureFlagRuntime;
 } & (FlagValuePair | { type?: never; value?: never });
+
+/**
+ * Which runtime a read is made on behalf of.
+ */
+export interface FlagReadOptions {
+  /**
+   * The runtime reading the flag.
+   *
+   * `shared` - the default - sees only flags that may reach clients, so a value
+   * you are about to relay to a player can never be a server-only one by
+   * accident. `server` sees every flag, because your server is the trusted side.
+   *
+   * A flag the runtime may not read behaves exactly like one that does not
+   * exist.
+   */
+  runtime?: FeatureFlagRuntime;
+}
 
 export interface ListFlagsOptions {
   page?: number;

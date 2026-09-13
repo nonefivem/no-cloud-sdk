@@ -133,6 +133,17 @@ with it.
 | `number`  | Any finite number         |
 | `json`    | An arbitrary JSON value   |
 
+Each flag also has a **runtime**, which says where it may be read:
+
+| Runtime  | Who can read it                  |
+| -------- | -------------------------------- |
+| `shared` | Your server and players' clients |
+| `server` | Your server only                 |
+
+Your server always receives every flag — it holds the API key and is the trusted
+side. The runtime says whether a value may also be relayed to players, and the
+SDK is what enforces that.
+
 #### Reading Flags
 
 ```typescript
@@ -157,6 +168,38 @@ A flag that does not exist — or that holds a different type than you asked for
 reads as the fallback, or `undefined` when you did not pass one. `isEnabled`
 defaults to `false`. Deleting a flag in the dashboard can never throw on a
 running server.
+
+#### Runtimes
+
+Reads are made on behalf of a runtime, and default to `shared`. A `server` flag
+is invisible to a `shared` read — it behaves exactly like a flag that does not
+exist — so a value you are about to send to a player can never be a server-only
+one by accident.
+
+```typescript
+await cloud.flags.getString("webhook-url"); // undefined — it is a server flag
+
+// Say you are the server, and you see everything
+await cloud.flags.getString("webhook-url", undefined, { runtime: "server" });
+await cloud.flags.isEnabled("god-mode", false, { runtime: "server" });
+
+// Exactly what is safe to relay to a player
+const forClient = await cloud.flags.getAll(); // shared flags only
+```
+
+Pass the runtime as the last argument, after the fallback. `getConfig()` is
+deliberately unfiltered — it is the raw payload your server received.
+
+#### Whole Flags
+
+To see a flag's type and runtime rather than just its value:
+
+```typescript
+const flag = await cloud.flags.getFlag("max-players");
+// { key: "max-players", type: "number", value: 64, runtime: "shared" }
+
+const flags = await cloud.flags.getFlags({ runtime: "server" }); // every flag, whole
+```
 
 #### Caching
 
@@ -195,8 +238,20 @@ const flag = await cloud.flags.create({
   value: 64
 });
 
+// A flag players must never see
+await cloud.flags.create({
+  key: "webhook-url",
+  name: "Webhook URL",
+  type: "string",
+  value: "https://hooks.example/secret",
+  runtime: "server" // defaults to "shared"
+});
+
 // Change the value — the type comes with it
 await cloud.flags.update(flag.id, { type: "number", value: 128 });
+
+// Close a flag off from clients after the fact
+await cloud.flags.update(flag.id, { runtime: "server" });
 
 // Rename or archive (no type needed)
 await cloud.flags.update(flag.id, { name: "Player cap", archived: true });
@@ -207,7 +262,11 @@ await cloud.flags.delete(flag.id);
 ```
 
 Keys are immutable — servers reference a flag by key, so renaming one would
-orphan every server reading it.
+orphan every server reading it. The runtime is not: a flag made client-readable
+by mistake can be closed off without recreating it.
+
+`runtime` defaults to `shared`, so a flag is readable by players unless it says
+otherwise. Anything holding a secret must be created as `server`.
 
 #### Quota & Audit Log
 

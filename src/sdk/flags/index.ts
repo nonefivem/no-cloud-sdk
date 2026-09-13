@@ -9,8 +9,10 @@ import type {
   FeatureFlagAuditEntry,
   FeatureFlagListResponse,
   FeatureFlagQuota,
+  FeatureFlagRuntime,
   FlagConfigEntry,
   FlagConfigPayload,
+  FlagReadOptions,
   JsonValue,
   ListFlagsOptions,
   PaginatedResult,
@@ -26,6 +28,27 @@ const JSON_HEADERS = { "Content-Type": "application/json" };
  * to the API.
  */
 export const DEFAULT_FLAGS_CACHE_TTL_SECONDS = 10;
+
+/**
+ * Runtime a read is made on behalf of when the caller does not state one.
+ *
+ * `shared` is the safe default: a read never hands back a server-only value to
+ * code that may be about to relay it to a player.
+ */
+export const DEFAULT_FLAG_RUNTIME: FeatureFlagRuntime = "shared";
+
+/**
+ * Whether a runtime lets players' clients read the flag.
+ *
+ * The single place the rule lives, so a runtime added later has to make a
+ * deliberate choice here rather than falling on whichever side of a comparison
+ * some call site happened to write.
+ *
+ * @param runtime - The flag's runtime.
+ */
+export function isClientReadable(runtime: FeatureFlagRuntime): boolean {
+  return runtime !== "server";
+}
 
 /**
  * A config payload held locally, with what is needed to revalidate it cheaply.
@@ -183,33 +206,92 @@ export class Flags extends SDKModule {
 
   /* --------------------------------- Values -------------------------------- */
 
-  private async entry(key: string): Promise<FlagConfigEntry | undefined> {
+  /**
+   * Whether a read made on behalf of `runtime` is allowed to see this flag.
+   *
+   * The server is the trusted side and sees everything; a shared read sees only
+   * what may reach a client.
+   */
+  private static visible(
+    entry: FlagConfigEntry,
+    runtime: FeatureFlagRuntime
+  ): boolean {
+    return runtime === "server" || isClientReadable(entry.runtime);
+  }
+
+  /**
+   * Looks up one flag, treating a flag the runtime may not read as absent.
+   */
+  private async entry(
+    key: string,
+    options?: FlagReadOptions
+  ): Promise<FlagConfigEntry | undefined> {
+    const runtime = options?.runtime ?? DEFAULT_FLAG_RUNTIME;
+    const config = await this.getConfig();
+    const entry = config.flags.find((flag) => flag.key === key);
+
+    return entry && Flags.visible(entry, runtime) ? entry : undefined;
+  }
+
+  /**
+   * Reads a flag whole - its key, type, value and runtime - rather than just the
+   * value.
+   *
+   * @param key - The flag's key.
+   * @param options - The runtime reading the flag. Defaults to `shared`.
+   * @returns {Promise<FlagConfigEntry | undefined>} The flag, or undefined if no
+   * such flag exists or this runtime may not read it.
+   * @throws {NoCloudAPIError} If the config cannot be fetched and none is held.
+   */
+  async getFlag(
+    key: string,
+    options?: FlagReadOptions
+  ): Promise<FlagConfigEntry | undefined> {
+    return this.entry(key, options);
+  }
+
+  /**
+   * Reads every flag whole, in the order the API returned them.
+   *
+   * With the default `shared` runtime this is exactly the set that is safe to
+   * relay to a player.
+   *
+   * @param options - The runtime reading the flags. Defaults to `shared`.
+   * @returns {Promise<FlagConfigEntry[]>} The flags this runtime may read.
+   * @throws {NoCloudAPIError} If the config cannot be fetched and none is held.
+   */
+  async getFlags(options?: FlagReadOptions): Promise<FlagConfigEntry[]> {
+    const runtime = options?.runtime ?? DEFAULT_FLAG_RUNTIME;
     const config = await this.getConfig();
 
-    return config.flags.find((flag) => flag.key === key);
+    return config.flags.filter((flag) => Flags.visible(flag, runtime));
   }
 
   /**
    * Reads a flag's raw value, whatever its type.
    * @param key - The flag's key.
+   * @param options - The runtime reading the flag. Defaults to `shared`.
    * @returns {Promise<JsonValue | undefined>} The value, or undefined if no such
-   * flag exists.
+   * flag exists or this runtime may not read it.
    * @throws {NoCloudAPIError} If the config cannot be fetched and none is held.
    */
-  async getValue(key: string): Promise<JsonValue | undefined> {
-    return (await this.entry(key))?.value;
+  async getValue(
+    key: string,
+    options?: FlagReadOptions
+  ): Promise<JsonValue | undefined> {
+    return (await this.entry(key, options))?.value;
   }
 
   /**
-   * Reads every flag as a plain key/value object.
+   * Reads the flags this runtime may see as a plain key/value object.
+   * @param options - The runtime reading the flags. Defaults to `shared`.
    * @returns {Promise<Record<string, JsonValue>>} Each flag's key and value.
    * @throws {NoCloudAPIError} If the config cannot be fetched and none is held.
    */
-  async getAll(): Promise<Record<string, JsonValue>> {
-    const config = await this.getConfig();
+  async getAll(options?: FlagReadOptions): Promise<Record<string, JsonValue>> {
     const values: Record<string, JsonValue> = {};
 
-    for (const flag of config.flags) {
+    for (const flag of await this.getFlags(options)) {
       values[flag.key] = flag.value;
     }
 
@@ -222,16 +304,34 @@ export class Flags extends SDKModule {
    */
   async getBoolean(key: string): Promise<boolean | undefined>;
   /**
-   * Reads a boolean flag, falling back when it is missing or holds another type.
+   * Reads a boolean flag, falling back when it is missing, holds another type,
+   * or may not be read by this runtime.
    * @param key - The flag's key.
-   * @param fallback - Returned when the flag is not a boolean flag.
+   * @param fallback - Returned when the flag is not a readable boolean flag.
+   * @param options - The runtime reading the flag. Defaults to `shared`.
    */
-  async getBoolean(key: string, fallback: boolean): Promise<boolean>;
   async getBoolean(
     key: string,
-    fallback?: boolean
+    fallback: boolean,
+    options?: FlagReadOptions
+  ): Promise<boolean>;
+  /**
+   * Reads a boolean flag on behalf of a runtime, with no fallback.
+   * @param key - The flag's key.
+   * @param fallback - Pass undefined to read without a fallback.
+   * @param options - The runtime reading the flag.
+   */
+  async getBoolean(
+    key: string,
+    fallback: undefined,
+    options: FlagReadOptions
+  ): Promise<boolean | undefined>;
+  async getBoolean(
+    key: string,
+    fallback?: boolean,
+    options?: FlagReadOptions
   ): Promise<boolean | undefined> {
-    const entry = await this.entry(key);
+    const entry = await this.entry(key, options);
 
     return entry?.type === "boolean" && typeof entry.value === "boolean"
       ? entry.value
@@ -244,13 +344,34 @@ export class Flags extends SDKModule {
    */
   async getString(key: string): Promise<string | undefined>;
   /**
-   * Reads a string flag, falling back when it is missing or holds another type.
+   * Reads a string flag, falling back when it is missing, holds another type, or
+   * may not be read by this runtime.
    * @param key - The flag's key.
-   * @param fallback - Returned when the flag is not a string flag.
+   * @param fallback - Returned when the flag is not a readable string flag.
+   * @param options - The runtime reading the flag. Defaults to `shared`.
    */
-  async getString(key: string, fallback: string): Promise<string>;
-  async getString(key: string, fallback?: string): Promise<string | undefined> {
-    const entry = await this.entry(key);
+  async getString(
+    key: string,
+    fallback: string,
+    options?: FlagReadOptions
+  ): Promise<string>;
+  /**
+   * Reads a string flag on behalf of a runtime, with no fallback.
+   * @param key - The flag's key.
+   * @param fallback - Pass undefined to read without a fallback.
+   * @param options - The runtime reading the flag.
+   */
+  async getString(
+    key: string,
+    fallback: undefined,
+    options: FlagReadOptions
+  ): Promise<string | undefined>;
+  async getString(
+    key: string,
+    fallback?: string,
+    options?: FlagReadOptions
+  ): Promise<string | undefined> {
+    const entry = await this.entry(key, options);
 
     return entry?.type === "string" && typeof entry.value === "string"
       ? entry.value
@@ -263,13 +384,34 @@ export class Flags extends SDKModule {
    */
   async getNumber(key: string): Promise<number | undefined>;
   /**
-   * Reads a number flag, falling back when it is missing or holds another type.
+   * Reads a number flag, falling back when it is missing, holds another type, or
+   * may not be read by this runtime.
    * @param key - The flag's key.
-   * @param fallback - Returned when the flag is not a number flag.
+   * @param fallback - Returned when the flag is not a readable number flag.
+   * @param options - The runtime reading the flag. Defaults to `shared`.
    */
-  async getNumber(key: string, fallback: number): Promise<number>;
-  async getNumber(key: string, fallback?: number): Promise<number | undefined> {
-    const entry = await this.entry(key);
+  async getNumber(
+    key: string,
+    fallback: number,
+    options?: FlagReadOptions
+  ): Promise<number>;
+  /**
+   * Reads a number flag on behalf of a runtime, with no fallback.
+   * @param key - The flag's key.
+   * @param fallback - Pass undefined to read without a fallback.
+   * @param options - The runtime reading the flag.
+   */
+  async getNumber(
+    key: string,
+    fallback: undefined,
+    options: FlagReadOptions
+  ): Promise<number | undefined>;
+  async getNumber(
+    key: string,
+    fallback?: number,
+    options?: FlagReadOptions
+  ): Promise<number | undefined> {
+    const entry = await this.entry(key, options);
 
     return entry?.type === "number" && typeof entry.value === "number"
       ? entry.value
@@ -282,16 +424,34 @@ export class Flags extends SDKModule {
    */
   async getJson<T = JsonValue>(key: string): Promise<T | undefined>;
   /**
-   * Reads a JSON flag, falling back when it is missing or holds another type.
+   * Reads a JSON flag, falling back when it is missing, holds another type, or
+   * may not be read by this runtime.
    * @param key - The flag's key.
-   * @param fallback - Returned when the flag is not a JSON flag.
+   * @param fallback - Returned when the flag is not a readable JSON flag.
+   * @param options - The runtime reading the flag. Defaults to `shared`.
    */
-  async getJson<T = JsonValue>(key: string, fallback: T): Promise<T>;
   async getJson<T = JsonValue>(
     key: string,
-    fallback?: T
+    fallback: T,
+    options?: FlagReadOptions
+  ): Promise<T>;
+  /**
+   * Reads a JSON flag on behalf of a runtime, with no fallback.
+   * @param key - The flag's key.
+   * @param fallback - Pass undefined to read without a fallback.
+   * @param options - The runtime reading the flag.
+   */
+  async getJson<T = JsonValue>(
+    key: string,
+    fallback: undefined,
+    options: FlagReadOptions
+  ): Promise<T | undefined>;
+  async getJson<T = JsonValue>(
+    key: string,
+    fallback?: T,
+    options?: FlagReadOptions
   ): Promise<T | undefined> {
-    const entry = await this.entry(key);
+    const entry = await this.entry(key, options);
 
     return entry?.type === "json" ? (entry.value as T) : fallback;
   }
@@ -299,17 +459,23 @@ export class Flags extends SDKModule {
   /**
    * Checks whether a boolean flag is on.
    *
-   * A missing flag, or one holding a non-boolean value, reads as `fallback` - so
-   * deleting a flag can never throw in production.
+   * A missing flag, one holding a non-boolean value, or one this runtime may not
+   * read, reads as `fallback` - so deleting a flag can never throw in
+   * production, and a server-only flag never leaks through a shared read.
    *
    * @param key - The flag's key.
-   * @param fallback - Returned when the flag is not a boolean flag. Defaults to
-   * false.
+   * @param fallback - Returned when the flag is not a readable boolean flag.
+   * Defaults to false.
+   * @param options - The runtime reading the flag. Defaults to `shared`.
    * @returns {Promise<boolean>} Whether the flag is on.
    * @throws {NoCloudAPIError} If the config cannot be fetched and none is held.
    */
-  async isEnabled(key: string, fallback = false): Promise<boolean> {
-    return this.getBoolean(key, fallback);
+  async isEnabled(
+    key: string,
+    fallback = false,
+    options?: FlagReadOptions
+  ): Promise<boolean> {
+    return this.getBoolean(key, fallback, options);
   }
 
   /* ------------------------------ Management ------------------------------ */

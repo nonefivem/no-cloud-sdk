@@ -20,6 +20,15 @@ const realFetch = globalThis.fetch;
 let calls: Call[];
 let respond: (call: Call) => Response;
 
+function entry(
+  key: string,
+  type: FlagConfigEntry["type"],
+  value: FlagConfigEntry["value"],
+  runtime: FlagConfigEntry["runtime"] = "shared"
+): FlagConfigEntry {
+  return { key, type, value, runtime };
+}
+
 function config(flags: FlagConfigEntry[] = []): FlagConfigPayload {
   return {
     etag: "abc123",
@@ -122,7 +131,7 @@ describe("getConfig", () => {
     const cloud = createClient({ flagsCacheTtlSeconds: 0 });
 
     respond = () =>
-      json(config([{ key: "new-hud", type: "boolean", value: true }]), {
+      json(config([entry("new-hud", "boolean", true)]), {
         headers: { ETag: 'W/"abc123"' }
       });
     const first = await cloud.flags.getConfig();
@@ -141,7 +150,7 @@ describe("getConfig", () => {
     await cloud.flags.getConfig();
 
     respond = () =>
-      json(config([{ key: "new-hud", type: "boolean", value: true }]));
+      json(config([entry("new-hud", "boolean", true)]));
     const updated = await cloud.flags.getConfig();
 
     expect(updated.flags).toHaveLength(1);
@@ -225,11 +234,11 @@ describe("reading values", () => {
     respond = () =>
       json(
         config([
-          { key: "new-hud", type: "boolean", value: true },
-          { key: "maintenance", type: "boolean", value: false },
-          { key: "motd", type: "string", value: "Welcome" },
-          { key: "max-players", type: "number", value: 64 },
-          { key: "economy", type: "json", value: { payout: 10, tax: 0.2 } }
+          entry("new-hud", "boolean", true),
+          entry("maintenance", "boolean", false),
+          entry("motd", "string", "Welcome"),
+          entry("max-players", "number", 64),
+          entry("economy", "json", { payout: 10, tax: 0.2 })
         ])
       );
   });
@@ -314,6 +323,131 @@ describe("reading values", () => {
   });
 });
 
+describe("runtime", () => {
+  beforeEach(() => {
+    respond = () =>
+      json(
+        config([
+          entry("new-hud", "boolean", true, "shared"),
+          entry("motd", "string", "Welcome", "shared"),
+          entry("god-mode", "boolean", true, "server"),
+          entry("webhook", "string", "https://hooks.example/secret", "server"),
+          entry("payouts", "json", { rate: 2 }, "server"),
+          entry("tick-rate", "number", 30, "server")
+        ])
+      );
+  });
+
+  it("hides server-only flags from a read that does not name a runtime", async () => {
+    const cloud = createClient();
+
+    expect(await cloud.flags.isEnabled("god-mode")).toBe(false);
+    expect(await cloud.flags.getValue("webhook")).toBeUndefined();
+    expect(await cloud.flags.getString("webhook")).toBeUndefined();
+    expect(await cloud.flags.getJson("payouts")).toBeUndefined();
+    expect(await cloud.flags.getNumber("tick-rate")).toBeUndefined();
+  });
+
+  it("reads server-only flags for a server runtime", async () => {
+    const cloud = createClient();
+    const options = { runtime: "server" } as const;
+
+    expect(await cloud.flags.isEnabled("god-mode", false, options)).toBe(true);
+    expect(
+      await cloud.flags.getString("webhook", undefined, options)
+    ).toBe("https://hooks.example/secret");
+    expect(await cloud.flags.getNumber("tick-rate", 0, options)).toBe(30);
+  });
+
+  it("still reads shared flags for a server runtime", async () => {
+    const cloud = createClient();
+
+    expect(
+      await cloud.flags.isEnabled("new-hud", false, { runtime: "server" })
+    ).toBe(true);
+  });
+
+  it("returns the fallback for a flag this runtime may not read", async () => {
+    const cloud = createClient();
+
+    expect(await cloud.flags.isEnabled("god-mode", true)).toBe(true);
+    expect(await cloud.flags.getString("webhook", "none")).toBe("none");
+    expect(await cloud.flags.getNumber("tick-rate", 20)).toBe(20);
+  });
+
+  it("gives getAll only what the runtime may read", async () => {
+    const cloud = createClient();
+
+    expect(await cloud.flags.getAll()).toEqual({
+      "new-hud": true,
+      motd: "Welcome"
+    });
+
+    expect(Object.keys(await cloud.flags.getAll({ runtime: "server" }))).toEqual(
+      ["new-hud", "motd", "god-mode", "webhook", "payouts", "tick-rate"]
+    );
+  });
+
+  it("gives getFlags only what the runtime may read", async () => {
+    const cloud = createClient();
+
+    expect((await cloud.flags.getFlags()).map((flag) => flag.key)).toEqual([
+      "new-hud",
+      "motd"
+    ]);
+    expect(await cloud.flags.getFlags({ runtime: "server" })).toHaveLength(6);
+  });
+
+  it("leaves the raw config unfiltered, since the server receives every flag", async () => {
+    const cloud = createClient();
+
+    expect((await cloud.flags.getConfig()).flags).toHaveLength(6);
+  });
+});
+
+describe("reading a flag whole", () => {
+  beforeEach(() => {
+    respond = () =>
+      json(
+        config([
+          entry("max-players", "number", 64, "shared"),
+          entry("webhook", "string", "https://hooks.example/secret", "server")
+        ])
+      );
+  });
+
+  it("returns the key, type, value and runtime rather than just the value", async () => {
+    const cloud = createClient();
+
+    expect(await cloud.flags.getFlag("max-players")).toEqual({
+      key: "max-players",
+      type: "number",
+      value: 64,
+      runtime: "shared"
+    });
+  });
+
+  it("hides a flag this runtime may not read", async () => {
+    const cloud = createClient();
+
+    expect(await cloud.flags.getFlag("webhook")).toBeUndefined();
+    expect(
+      await cloud.flags.getFlag("webhook", { runtime: "server" })
+    ).toEqual({
+      key: "webhook",
+      type: "string",
+      value: "https://hooks.example/secret",
+      runtime: "server"
+    });
+  });
+
+  it("returns undefined for an unknown flag", async () => {
+    const cloud = createClient();
+
+    expect(await cloud.flags.getFlag("missing")).toBeUndefined();
+  });
+});
+
 describe("cache control", () => {
   it("exposes the cached config without contacting the API", async () => {
     const cloud = createClient();
@@ -343,7 +477,7 @@ describe("cache control", () => {
 
     respond = (call) =>
       call.url.endsWith("/config")
-        ? json(config([{ key: "new-hud", type: "boolean", value: true }]))
+        ? json(config([entry("new-hud", "boolean", true)]))
         : json({ id: "flag-id" });
 
     await cloud.flags.update("flag-id", { type: "boolean", value: true });
@@ -397,6 +531,48 @@ describe("management", () => {
       type: "number",
       value: 64
     });
+  });
+
+  it("sends the runtime when one is given", async () => {
+    const cloud = createClient();
+
+    respond = () => json({ id: "flag-id" }, { status: 201 });
+
+    await cloud.flags.create({
+      key: "webhook",
+      name: "Webhook",
+      type: "string",
+      value: "https://hooks.example/secret",
+      runtime: "server"
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? "{}").runtime).toBe("server");
+  });
+
+  it("omits the runtime when none is given, letting the API default it", async () => {
+    const cloud = createClient();
+
+    respond = () => json({ id: "flag-id" }, { status: 201 });
+
+    await cloud.flags.create({
+      key: "new-hud",
+      name: "New HUD",
+      type: "boolean",
+      value: true
+    });
+
+    expect(JSON.parse(calls[0]?.body ?? "{}")).not.toHaveProperty("runtime");
+  });
+
+  it("closes a flag off from clients through update", async () => {
+    const cloud = createClient();
+
+    respond = () => json({ id: "flag-id" });
+
+    await cloud.flags.update("flag-id", { runtime: "server" });
+
+    expect(calls[0]?.method).toBe("PATCH");
+    expect(JSON.parse(calls[0]?.body ?? "{}")).toEqual({ runtime: "server" });
   });
 
   it("fetches a single flag by id", async () => {
