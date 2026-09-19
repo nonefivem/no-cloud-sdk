@@ -1,5 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { NoCloud } from "../src";
+import type { UploadResponse } from "../src";
 
 describe("Storage API (Stage)", () => {
   let cloud: NoCloud;
@@ -70,7 +71,7 @@ describe("Storage API (Stage)", () => {
 
       expect(uploadResponse.ok).toBe(true); // No response expected for successful upload
 
-      const uploadedMedia = await uploadResponse.json();
+      const uploadedMedia = (await uploadResponse.json()) as UploadResponse;
 
       expect(uploadedMedia).toBeDefined();
       expect(uploadedMedia.id).toBeString();
